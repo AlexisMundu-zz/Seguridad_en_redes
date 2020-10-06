@@ -19,6 +19,8 @@ require('dotenv').config();
 const User = require('./models/user');
 const Log = require('./models/log');
 const { use } = require('passport');
+const speakeasy = require('speakeasy');
+const qrcode = require('qrcode');
 
 const NEXMO_KEY = process.env.NEXMO_KEY;
 const NEXMO_SECRET = process.env.NEXMO_SECRET;
@@ -65,7 +67,9 @@ router.post('/login',
   function(req, res){
     if(req.isAuthenticated()){
       registerUserLogin(req.user);
-      res.redirect('/');
+      if(!req.user.secret_2fa)
+        return res.redirect('/generate_2fa')
+      res.redirect('/verify_2fa');
     }
   }
 );
@@ -195,6 +199,44 @@ router.post('/edit', async (req, res) => {
 router.get('/user', isLoggedIn, (req, res) => {
   res.json(req.user);
   res.end()
+})
+
+router.get('/generate_2fa', isLoggedIn, async (req, res) => {
+  let user_id = req.user._id;
+  let secret = speakeasy.generateSecret({
+    name: 'Seguridad en redes'
+  })
+
+  await User.findOneAndUpdate({_id: user_id}, {secret_2fa: secret.base32}, function(err, result){
+    if(err){
+      console.log(err);
+    }
+  }).catch((err) => console.log(err));
+  // Get the data URL of the authenticator URL
+  qrcode.toDataURL(secret.otpauth_url, function(err, data_url) {
+    // Display this data URL to the user in an <img> tag
+    // Example:
+    res.write('<img src="' + data_url + '">');
+    res.write('<form action="verify_2fa" method="get">');
+    res.write('<input type="submit" value="Verify 2FA">');
+    res.write('</form>')
+    res.end()
+  });
+})
+
+router.get('/verify_2fa', isLoggedIn, (req, res) =>{
+  res.sendFile(path.join(__dirname, 'public/html/verify_2fa.html'))
+})
+
+router.post('/verify_2fa', isLoggedIn, async (req, res) =>{
+  let verified = speakeasy.totp.verify({ secret: req.user.secret_2fa,
+    encoding: 'base32',
+    token: req.body.userToken });
+
+  if(verified){
+    return res.redirect('/');
+  }
+  return res.redirect('/verify_2fa');
 })
 
 
