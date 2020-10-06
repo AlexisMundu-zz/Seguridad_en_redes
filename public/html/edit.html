@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit</title>
+</head>
+<body>
+    <h1>Edit profile</h1>
+    <form action="/edit" method="post">
+        <input id="username" type="text" name="user[username]" placeholder="username">
+        <input type="password" name="user[oldPass]" placeholder="old password">
+        <input type="password" name="user[newPass]" placeholder="new password">
+        <input type="submit">
+    </form>
+    <script>
+        const username_input = document.getElementById('username');
+
+        fetch('/user')
+        .then(response => response.json())
+        .then(data => {
+            username_input.value = data.username;
+        })
+    </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+.env
+*.mov
+/signed-files
+/uploaded-files
+*.pem
+*.cert
+*.key
