@@ -25,7 +25,31 @@ const qrcode = require('qrcode');
 const NEXMO_KEY = process.env.NEXMO_KEY;
 const NEXMO_SECRET = process.env.NEXMO_SECRET;
 
-let privateKey, publicKey;
+let keyFileEncrypt, privateKey, publicKey;
+const algorithm = 'aes-256-ctr';
+
+
+const encrypt = (buffer) => {
+  // Create an initialization vector
+  const iv = crypto.randomBytes(16);
+  // Create a new cipher using the algorithm, key, and iv
+  const cipher = crypto.createCipheriv(algorithm, keyFileEncrypt, iv);
+  // Create the new (encrypted) buffer
+  const result = Buffer.concat([iv, cipher.update(buffer), cipher.final()]);
+  return result;
+};
+
+const decrypt = (encrypted) => {
+  // Get the iv: the first 16 bytes
+  const iv = encrypted.slice(0, 16);
+  // Get the rest
+  encrypted = encrypted.slice(16);
+  // Create a decipher
+  const decipher = crypto.createDecipheriv(algorithm, keyFileEncrypt, iv);
+  // Actually decrypt it
+  const result = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+  return result;
+};
 
 
 /////////////////////
@@ -114,6 +138,14 @@ router.post('/fileupload', (req, res) => {
       let newpath = `${__dirname}/uploaded-files/${files.filetoupload.name}`;
       fs.rename(oldpath, newpath, function (err) {
         if (err) throw err;
+        const filePath = `${__dirname}/uploaded-files/${files.filetoupload.name}`;
+        const file = fs.readFileSync(filePath);
+        encrypted_file = encrypt(file);
+        fs.writeFile(filePath, encrypted_file, function (err,data) {
+          if (err) {
+            console.log(err);
+          }
+        });
         res.redirect('/');
         res.end();
       });
@@ -239,6 +271,13 @@ router.post('/verify_2fa', isLoggedIn, async (req, res) =>{
   return res.redirect('/verify_2fa');
 })
 
+router.post('/decrypt', async (req, res) =>{
+  const encrypted_file = fs.readFileSync(`${__dirname}/uploaded-files/${'documento.txt'}`)
+  decrypted_file = decrypt(encrypted_file);
+  console.log('Decrypted file: ', decrypted_file.toString('utf-8'));
+  res.redirect('/');
+})
+
 
 app.use('/', router);
 
@@ -247,12 +286,13 @@ const options = {
 };
 
 function isLoggedIn(req, res, next){
-  // return next();
   if(req.isAuthenticated()){
     return next();
   }
   res.redirect('/login');
 }
 
-https.createServer(options, app).listen(3000, () => { console.log('Server running at https://127.0.0.1:3000/')
+https.createServer(options, app).listen(3000, () => {
+  console.log('Server running at https://127.0.0.1:3000/');
+  keyFileEncrypt = crypto.createHash('sha256').update(options.key).digest('base64').substr(0, 32);
 })
